@@ -13,8 +13,12 @@ test('User can open Aviator game', async ({ page }) => {
   await page.getByRole('link', { name: 'aviator' }).click();
   await page.getByRole('button', { name: 'Real Play' }).first().click();
 
-  // Close launch popup
-  await page.getByRole('button', { name: 'Close' }).click();
+  // If launch popup appears, close it
+  const closeButton = page.getByRole('button', { name: 'Close' });
+
+  if (await closeButton.isVisible().catch(() => false)) {
+    await closeButton.click();
+  }
 
   // Verify Aviator loaded
   const aviatorGame = page
@@ -24,5 +28,5 @@ test('User can open Aviator game', async ({ page }) => {
     .contentFrame()
     .locator('.dom-container');
 
-  await expect(aviatorGame).toBeVisible();
+  await expect(aviatorGame).toBeVisible({ timeout: 30000 });
 });

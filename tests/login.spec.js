@@ -10,7 +10,6 @@ test('Valid login', async ({ page, context }) => {
   await login.openLoginForm();
   await login.login('3354321', 'choplife2026');
 
-  // Verify authenticated UI instead of URL
   await expect(
     page.getByRole('link', { name: 'My Account' })
   ).toBeVisible();
@@ -29,8 +28,8 @@ test('Invalid login', async ({ page, context }) => {
   await login.openLoginForm();
   await login.login('3354321', 'wrongpassword');
 
-  // Verify login did not succeed
-  await expect(page).toHaveURL(/login/);
+  // Verify error message appears
+  await expect(login.errorMessage).toBeVisible();
 });
 
 test('Blank field validation', async ({ page, context }) => {
