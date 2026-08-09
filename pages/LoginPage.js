@@ -5,7 +5,7 @@ class LoginPage {
     this.page = page;
 
     // LOGIN LOCATORS
-    this.loginLink = page.getByRole('link', { name: 'Login' });
+    this.loginLink = page.getByRole('link', { name: 'Log in' });
     this.phoneInput = page.getByRole('textbox', { name: 'Phone Number' });
     this.passwordInput = page.getByRole('textbox', { name: 'Password' });
     this.loginButton = page.getByRole('button', { name: 'Log in' });

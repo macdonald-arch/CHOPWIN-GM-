@@ -13,7 +13,10 @@ test('User can access Inbox and view inbox page', async ({ page }) => {
 
   // Verify Inbox page loaded
   await expect(
-    page.getByRole('heading', { name: 'Inbox' })
+    page.getByRole('heading', {
+      name: 'Inbox is currently empty',
+      exact: true
+    })
   ).toBeVisible();
 
   // Verify filters are visible

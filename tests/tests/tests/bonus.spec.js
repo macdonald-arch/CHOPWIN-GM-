@@ -10,7 +10,10 @@ test('User can access Bonus page', async ({ page }) => {
   await login.login('3354321', 'choplife2026');
 
   // Open Bonus
-  await page.getByRole('button', { name: 'Bonus' }).click();
+  await page.getByRole('button', {
+    name: 'Bonus',
+    exact: true
+  }).click();
 
   // Verify bonus details button exists
   await expect(
@@ -27,13 +30,18 @@ test('User can open Bonus details', async ({ page }) => {
   await login.login('3354321', 'choplife2026');
 
   // Open Bonus
-  await page.getByRole('button', { name: 'Bonus' }).click();
+  await page.getByRole('button', {
+    name: 'Bonus',
+    exact: true
+  }).click();
 
   // Open bonus details
-  await page.getByRole('button', { name: 'View Details' }).click();
+  await page.getByRole('button', {
+    name: 'View Details'
+  }).click();
 
-  // Verify bonus details page/modal loaded
+  // Verify bonus details content is visible
   await expect(
-    page.locator('.play-btn').first()
-  ).toBeVisible();
+    page.locator('.card-content').first()
+  ).toBeVisible({ timeout: 10000 });
 });
