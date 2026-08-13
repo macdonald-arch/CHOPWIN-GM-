@@ -1,12 +1,17 @@
+import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import LoginPage from '../../pages/LoginPage.js';
+import { markets } from '../../config/markets.js';
+
+const market = process.env.MARKET || 'gambia';
+const credentials = markets[market];
 
 test('User can open Chop Spin modal', async ({ page }) => {
   const login = new LoginPage(page);
 
   await login.navigate();
   await login.openLoginForm();
-  await login.login('3354321', 'choplife2026');
+  await login.login(credentials.phone, credentials.password);
 
   await expect(
     page.getByRole('link', { name: 'My Account' })
@@ -24,7 +29,7 @@ test('User can access Chop Spin feature', async ({ page }) => {
 
   await login.navigate();
   await login.openLoginForm();
-  await login.login('3354321', 'choplife2026');
+  await login.login(credentials.phone, credentials.password);
 
   await expect(
     page.getByRole('link', { name: 'My Account' })

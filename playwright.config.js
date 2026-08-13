@@ -1,5 +1,14 @@
-// @ts-check
+import 'dotenv/config';
 import { defineConfig, devices } from '@playwright/test';
+import { markets } from './config/markets.js';
+
+const market = process.env.MARKET || 'gambia';
+
+if (!markets[market]) {
+  throw new Error(
+    `Unknown market "${market}". Available markets: ${Object.keys(markets).join(', ')}`
+  );
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -10,10 +19,10 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
+    baseURL: markets[market].baseURL,
     trace: 'on-first-retry',
   },
 
-  /* Only running on Chromium */
   projects: [
     {
       name: 'chromium',

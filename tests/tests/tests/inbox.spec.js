@@ -1,15 +1,22 @@
+import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import LoginPage from '../../../pages/LoginPage.js';
+import { markets } from '../../../config/markets.js';
+
+const market = process.env.MARKET || 'gambia';
+const credentials = markets[market];
 
 test('User can access Inbox and view inbox page', async ({ page }) => {
   const login = new LoginPage(page);
 
   await login.navigate();
   await login.openLoginForm();
-  await login.login('3354321', 'choplife2026');
+  await login.login(credentials.phone, credentials.password);
 
   // Open Inbox
-  await page.getByLabel('Inbox').click();
+  await page.getByRole('link', {
+    name: 'Inbox'
+  }).click();
 
   // Verify Inbox page loaded
   await expect(
@@ -17,14 +24,22 @@ test('User can access Inbox and view inbox page', async ({ page }) => {
       name: 'Inbox is currently empty',
       exact: true
     })
-  ).toBeVisible();
+  ).toBeVisible({
+    timeout: 10000
+  });
 
   // Verify filters are visible
   await expect(
-    page.getByRole('button', { name: 'All', exact: true })
+    page.getByRole('button', {
+      name: 'All',
+      exact: true
+    })
   ).toBeVisible();
 
   await expect(
-    page.getByRole('button', { name: 'Unread', exact: true })
+    page.getByRole('button', {
+      name: 'Unread',
+      exact: true
+    })
   ).toBeVisible();
 });

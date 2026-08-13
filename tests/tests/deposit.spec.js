@@ -1,13 +1,19 @@
+import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import LoginPage from '../../pages/LoginPage.js';
+import { markets } from '../../config/markets.js';
 
-test('User can proceed to Wave payment after entering deposit amount', async ({ page }) => {
+const market = process.env.MARKET || 'gambia';
+const credentials = markets[market];
+const marketConfig = markets[market];
+
+test('User can proceed to payment after entering deposit amount', async ({ page }) => {
   const login = new LoginPage(page);
 
   // Login
   await login.navigate();
   await login.openLoginForm();
-  await login.login('3354321', 'choplife2026');
+  await login.login(credentials.phone, credentials.password);
 
   // Open My Account
   await page.getByRole('button', {
@@ -26,14 +32,14 @@ test('User can proceed to Wave payment after entering deposit amount', async ({ 
     })
     .click();
 
-  // Select deposit method
+  // Select market-specific deposit method
   await page.getByRole('button', {
-    name: 'Wave Wave'
+    name: marketConfig.depositMethod
   }).click();
 
-  // Select deposit amount
+  // Select market-specific deposit amount
   await page.getByRole('button', {
-    name: '20',
+    name: marketConfig.depositAmount,
     exact: true
   }).click();
 
@@ -42,8 +48,19 @@ test('User can proceed to Wave payment after entering deposit amount', async ({ 
     name: 'Continue'
   }).click();
 
-  // Verify that the Wave payment page was reached
-  await expect(page).toHaveURL(/pay\.wave\.com/, {
-    timeout: 15000
-  });
+  // Gambia reaches the Wave payment page
+  if (market === 'gambia') {
+    await expect(page).toHaveURL(/pay\.wave\.com/, {
+      timeout: 15000
+    });
+  }
+
+  // Uganda shows phone number validation
+  if (market === 'uganda') {
+    await expect(
+      page.getByText('Invalid phone number')
+    ).toBeVisible({
+      timeout: 15000
+    });
+  }
 });

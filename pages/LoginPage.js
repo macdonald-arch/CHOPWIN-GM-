@@ -16,7 +16,15 @@ class LoginPage {
 
   // NAVIGATE
   async navigate() {
-    await this.page.goto('https://chopwin.gm/');
+    await this.page.goto('/', {
+      waitUntil: 'domcontentloaded'
+    });
+
+    // Wait for the homepage/login link to become available
+    await this.loginLink.waitFor({
+      state: 'visible',
+      timeout: 15000
+    });
   }
 
   // OPEN LOGIN FORM

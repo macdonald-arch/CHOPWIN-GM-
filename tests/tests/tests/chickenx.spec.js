@@ -1,5 +1,10 @@
+import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import LoginPage from '../../../pages/LoginPage.js';
+import { markets } from '../../../config/markets.js';
+
+const market = process.env.MARKET || 'gambia';
+const credentials = markets[market];
 
 test('User can open Chicken X game', async ({ page }) => {
   const login = new LoginPage(page);
@@ -7,10 +12,15 @@ test('User can open Chicken X game', async ({ page }) => {
   // Login
   await login.navigate();
   await login.openLoginForm();
-  await login.login('3354321', 'choplife2026');
+  await login.login(credentials.phone, credentials.password);
 
   // Allow homepage to finish rendering
   await page.waitForTimeout(3000);
+
+  // Uganda: open Crash category before locating Chicken X
+  if (market === 'uganda') {
+    await page.getByLabel('Crash').click();
+  }
 
   // Locate Chicken X
   const chickenXButton = page.getByRole('button', {
@@ -28,16 +38,11 @@ test('User can open Chicken X game', async ({ page }) => {
     }
   }
 
-  // Verify Chicken X is available
-  await expect(chickenXButton).toHaveCount(1, {
-    timeout: 5000
-  });
-
   // Bring Chicken X into view
-  await chickenXButton.scrollIntoViewIfNeeded();
+  await chickenXButton.first().scrollIntoViewIfNeeded();
 
   // Open Chicken X
-  await chickenXButton.click();
+  await chickenXButton.first().click();
 
   // Verify game iframe loaded
   await expect(

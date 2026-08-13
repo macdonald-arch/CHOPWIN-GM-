@@ -1,5 +1,10 @@
+import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import LoginPage from '../../../pages/LoginPage.js';
+import { markets } from '../../../config/markets.js';
+
+const market = process.env.MARKET || 'gambia';
+const credentials = markets[market];
 
 test('User can access Bonus page', async ({ page }) => {
   const login = new LoginPage(page);
@@ -7,7 +12,7 @@ test('User can access Bonus page', async ({ page }) => {
   // Login
   await login.navigate();
   await login.openLoginForm();
-  await login.login('3354321', 'choplife2026');
+  await login.login(credentials.phone, credentials.password);
 
   // Open Bonus
   await page.getByRole('button', {
@@ -27,7 +32,7 @@ test('User can open Bonus details', async ({ page }) => {
   // Login
   await login.navigate();
   await login.openLoginForm();
-  await login.login('3354321', 'choplife2026');
+  await login.login(credentials.phone, credentials.password);
 
   // Open Bonus
   await page.getByRole('button', {
@@ -40,8 +45,20 @@ test('User can open Bonus details', async ({ page }) => {
     name: 'View Details'
   }).click();
 
-  // Verify bonus details content is visible
-  await expect(
-    page.locator('.card-content').first()
-  ).toBeVisible({ timeout: 10000 });
+  if (market === 'uganda') {
+    // Uganda opens Bonus details on a dedicated page
+    await expect(page).toHaveURL(
+      /\/bonus\/cashback\/casino\/31/,
+      {
+        timeout: 15000
+      }
+    );
+  } else {
+    // Gambia displays Bonus details in the card content
+    await expect(
+      page.locator('.card-content').first()
+    ).toBeVisible({
+      timeout: 10000
+    });
+  }
 });
