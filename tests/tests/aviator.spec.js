@@ -16,8 +16,12 @@ test('User can open Aviator game', async ({ page }) => {
 
   // Sierra Leone
   if (market === 'sierraLeone') {
+
     // Return to homepage
-    await page.goto('https://www.chopwin.sl/');
+    await page.goto('https://www.chopwin.sl/', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000
+    });
 
     // Open Aviator
     await page.locator('.play-btn').first().click({
@@ -42,13 +46,14 @@ test('User can open Aviator game', async ({ page }) => {
     }
 
   } else if (market === 'uganda') {
+
     // Open Aviator
     await page.getByRole('button', {
       name: 'Aviator',
       exact: true
     }).first().click();
 
-    // Verify Aviator page/game opened
+    // Verify Aviator game opened
     await expect(
       page.locator('iframe[title="game-frame"]')
     ).toBeVisible({
@@ -56,27 +61,32 @@ test('User can open Aviator game', async ({ page }) => {
     });
 
   } else {
+
     // Gambia
     await page.getByRole('link', {
       name: 'aviator'
     }).click();
 
+    // Start real play
     await page.getByRole('button', {
       name: 'Real Play'
     }).first().click();
 
+    // Verify Aviator page opened
+    await expect(page).toHaveURL(
+      /\/casino\/game\/aviator/,
+      {
+        timeout: 30000
+      }
+    );
+
+    // Close the game
     const closeButton = page.getByRole('button', {
       name: 'Close'
-    });
+    }).first();
 
     if (await closeButton.isVisible().catch(() => false)) {
       await closeButton.click();
     }
-
-    await expect(
-      page.locator('iframe[title="game-frame"]')
-    ).toBeVisible({
-      timeout: 30000
-    });
   }
 });

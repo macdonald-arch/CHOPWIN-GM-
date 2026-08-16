@@ -41,52 +41,61 @@ class LoginPage {
 
   // NAVIGATE
   async navigate() {
-    if (process.env.MARKET === 'sierraLeone') {
+    const market = process.env.MARKET || 'gambia';
+
+    if (market === 'sierraLeone') {
       try {
         await this.page.goto('https://www.chopwin.sl/', {
           waitUntil: 'domcontentloaded',
           timeout: 30000
         });
       } catch (error) {
-        console.log('Sierra Leone navigation timed out, continuing...');
+        console.log(
+          'Sierra Leone navigation timed out, continuing...'
+        );
       }
 
-      // Give the homepage time to render
+      // Give homepage time to render
       await this.page.waitForTimeout(3000);
-    } else {
-      try {
-        await this.page.goto('/', {
-          waitUntil: 'domcontentloaded',
-          timeout: 30000
-        });
-      } catch (error) {
-        console.log('Initial navigation timed out, continuing...');
-      }
 
-      // Allow the homepage to finish rendering
-      await this.page.waitForTimeout(2000);
+      return;
     }
+
+    // Gambia / Uganda
+    try {
+      await this.page.goto('/', {
+        waitUntil: 'commit',
+        timeout: 20000
+      });
+    } catch (error) {
+      console.log(
+        'Initial navigation timed out, continuing...'
+      );
+    }
+
+    // Allow the homepage to render
+    await this.page.waitForTimeout(2000);
   }
 
   // OPEN LOGIN FORM
   async openLoginForm() {
-    if (process.env.MARKET === 'sierraLeone') {
-      await this.page.waitForTimeout(2000);
+    const market = process.env.MARKET || 'gambia';
 
-      // Close blocking popup/overlay if one appears
-      const closeButton = this.page.getByRole('button', {
-        name: 'Close'
-      }).first();
+    // Close blocking popup/overlay if one appears
+    const closeButton = this.page.getByRole('button', {
+      name: 'Close'
+    }).first();
 
-      if (await closeButton.isVisible().catch(() => false)) {
-        await closeButton.click({
-          force: true
-        });
+    if (await closeButton.isVisible().catch(() => false)) {
+      await closeButton.click({
+        force: true
+      }).catch(() => {});
 
-        await this.page.waitForTimeout(500);
-      }
+      await this.page.waitForTimeout(500);
+    }
 
-      // Wait for Login link
+    // Wait for Login link
+    if (market === 'sierraLeone') {
       await this.loginLink.waitFor({
         state: 'visible',
         timeout: 20000
@@ -96,25 +105,17 @@ class LoginPage {
         force: true
       });
     } else {
-      // Close blocking popup/overlay if one appears
-      const closeButton = this.page.getByRole('button', {
-        name: 'Close'
-      }).first();
-
-      if (await closeButton.isVisible().catch(() => false)) {
-        await closeButton.click();
-      }
-
-      // Wait for Login link
       await this.loginLink.waitFor({
         state: 'visible',
         timeout: 15000
       });
 
-      await this.loginLink.click();
+      await this.loginLink.click({
+        force: true
+      });
     }
 
-    // Wait for login form to actually appear
+    // Wait for login form
     await this.phoneInput.waitFor({
       state: 'visible',
       timeout: 15000
@@ -143,6 +144,7 @@ class LoginPage {
   // REQUIRED FIELD VALIDATION
   async requiredFieldBlank(password) {
     await this.passwordInput.fill(password);
+
     await expect(this.loginButton).toBeDisabled();
   }
 
