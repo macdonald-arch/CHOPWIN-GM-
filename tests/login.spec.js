@@ -15,13 +15,25 @@ test('Valid login', async ({ page, context }) => {
   await login.openLoginForm();
   await login.login(credentials.phone, credentials.password);
 
-  await expect(
-    page.getByRole('link', { name: 'My Account' })
-  ).toBeVisible();
+  if (market === 'sierraLeone') {
+    // Sierra Leone shows the lobby link after successful login
+    await expect(
+      page.getByRole('link', {
+        name: 'lobby'
+      })
+    ).toBeVisible();
+  } else {
+    // Gambia and Uganda
+    await expect(
+      page.getByRole('link', {
+        name: 'My Account'
+      })
+    ).toBeVisible();
 
-  await expect(
-    page.getByText('Balance')
-  ).toBeVisible();
+    await expect(
+      page.getByText('Balance')
+    ).toBeVisible();
+  }
 });
 
 test('Invalid login', async ({ page, context }) => {
@@ -34,7 +46,9 @@ test('Invalid login', async ({ page, context }) => {
   await login.login(credentials.phone, 'wrongpassword');
 
   // Verify error message appears
-  await expect(login.errorMessage).toBeVisible();
+  await expect(
+    login.errorMessage
+  ).toBeVisible();
 });
 
 test('Blank field validation', async ({ page, context }) => {

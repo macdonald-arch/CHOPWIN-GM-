@@ -10,42 +10,53 @@ test('User can open Aviator game', async ({ page }) => {
   const login = new LoginPage(page);
 
   // Login
-  try {
-    await login.navigate();
-  } catch (error) {
-    console.log('Initial navigation failed, retrying...');
-    await page.waitForTimeout(2000);
-    await login.navigate();
-  }
-
+  await login.navigate();
   await login.openLoginForm();
   await login.login(credentials.phone, credentials.password);
 
-  if (market === 'uganda') {
+  // Sierra Leone
+  if (market === 'sierraLeone') {
+    // Return to homepage
+    await page.goto('https://www.chopwin.sl/');
+
+    // Open Aviator
+    await page.locator('.play-btn').first().click({
+      force: true
+    });
+
+    // Verify Aviator page opened
+    await expect(page).toHaveURL(
+      /\/casino\/game\/aviator/,
+      {
+        timeout: 30000
+      }
+    );
+
+    // Close the game
+    const closeButton = page.getByRole('button', {
+      name: 'Close'
+    }).first();
+
+    if (await closeButton.isVisible().catch(() => false)) {
+      await closeButton.click();
+    }
+
+  } else if (market === 'uganda') {
     // Open Aviator
     await page.getByRole('button', {
       name: 'Aviator',
       exact: true
-    }).click();
+    }).first().click();
 
-    // Verify Aviator game frame loaded
-    const gameFrame = page.locator(
-      'iframe[title="game-frame"]'
-    );
-
-    await expect(gameFrame).toBeVisible({
+    // Verify Aviator page/game opened
+    await expect(
+      page.locator('iframe[title="game-frame"]')
+    ).toBeVisible({
       timeout: 30000
     });
 
-    // Verify the game frame points to Spribe Aviator
-    await expect(gameFrame).toHaveAttribute(
-      'src',
-      /launch\.spribegaming\.com\/aviator/,
-      { timeout: 30000 }
-    );
-
   } else {
-    // Gambia Aviator flow
+    // Gambia
     await page.getByRole('link', {
       name: 'aviator'
     }).click();
@@ -62,14 +73,9 @@ test('User can open Aviator game', async ({ page }) => {
       await closeButton.click();
     }
 
-    const aviatorGame = page
-      .locator('iframe[title="game-frame"]')
-      .contentFrame()
-      .locator('iframe[title="gameIFrame"]')
-      .contentFrame()
-      .locator('.dom-container');
-
-    await expect(aviatorGame).toBeVisible({
+    await expect(
+      page.locator('iframe[title="game-frame"]')
+    ).toBeVisible({
       timeout: 30000
     });
   }

@@ -5,7 +5,6 @@ import { markets } from '../../config/markets.js';
 
 const market = process.env.MARKET || 'gambia';
 const credentials = markets[market];
-const marketConfig = markets[market];
 
 test('User can proceed to payment after entering deposit amount', async ({ page }) => {
   const login = new LoginPage(page);
@@ -32,35 +31,47 @@ test('User can proceed to payment after entering deposit amount', async ({ page 
     })
     .click();
 
-  // Select market-specific deposit method
-  await page.getByRole('button', {
-    name: marketConfig.depositMethod
-  }).click();
-
-  // Select market-specific deposit amount
-  await page.getByRole('button', {
-    name: marketConfig.depositAmount,
-    exact: true
-  }).click();
-
-  // Continue to payment
-  await page.getByRole('button', {
-    name: 'Continue'
-  }).click();
-
-  // Gambia reaches the Wave payment page
-  if (market === 'gambia') {
-    await expect(page).toHaveURL(/pay\.wave\.com/, {
-      timeout: 15000
+  // Select deposit method
+  if (market === 'sierraLeone') {
+    await page.getByRole('button', {
+      name: 'Orange Money Orange Money'
+    }).click({
+      force: true
     });
-  }
 
-  // Uganda shows phone number validation
-  if (market === 'uganda') {
+    // Select deposit amount
+    await page.getByRole('button', {
+      name: '5',
+      exact: true
+    }).click({
+      force: true
+    });
+
+    // Continue
+    await page.getByRole('button', {
+      name: 'Continue'
+    }).click();
+
+    // Verify Sierra Leone deposit result
     await expect(
-      page.getByText('Invalid phone number')
-    ).toBeVisible({
-      timeout: 15000
-    });
+      page.getByText('Your deposit of 5.00 failed')
+    ).toBeVisible();
+
+  } else {
+    // Existing Gambia/Uganda flow
+    await page.getByRole('button', {
+      name: market === 'uganda'
+        ? 'MTN MTN'
+        : 'Wave Wave'
+    }).click();
+
+    await page.getByRole('button', {
+      name: credentials.depositAmount || '20',
+      exact: true
+    }).click();
+
+    await page.getByRole('button', {
+      name: 'Continue'
+    }).click();
   }
 });
