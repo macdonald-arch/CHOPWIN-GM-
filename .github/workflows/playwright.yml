@@ -5,6 +5,10 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  schedule:
+    - cron: '0 8 * * *'
+    - cron: '0 15 * * *'
+    - cron: '0 20 * * *'
 
 jobs:
   test:
@@ -52,25 +56,16 @@ jobs:
         continue-on-error: true
         run: npx playwright test
 
-      - name: Save market result
-        if: always()
-        run: |
-          if [ "${{ steps.playwright.outcome }}" = "success" ]; then
-            echo "PASSED" > market-result.txt
-          else
-            echo "FAILED" > market-result.txt
-          fi
-
-      - name: Upload market result
+      - name: Upload Playwright JSON results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: market-result-${{ matrix.market }}
-          path: market-result.txt
+          name: playwright-results-${{ matrix.market }}
+          path: test-results/playwright-results.json
           retention-days: 30
 
-      - name: Upload Playwright report
-        if: ${{ !cancelled() }}
+      - name: Upload Playwright HTML report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.market }}
@@ -88,45 +83,269 @@ jobs:
     if: always()
 
     steps:
-      - name: Download market results
+      - name: Download Playwright JSON results
         uses: actions/download-artifact@v4
         with:
-          pattern: market-result-*
-          path: market-results
+          pattern: playwright-results-*
+          path: playwright-results
           merge-multiple: false
 
-      - name: Determine market results
+      - name: Build Slack report
         id: report
         shell: bash
         run: |
-          GAMBIA="UNKNOWN"
-          UGANDA="UNKNOWN"
-          SIERRA_LEONE="UNKNOWN"
+          node <<'NODE'
+          const fs = require('fs');
 
-          if [ -f "market-results/market-result-gambia/market-result.txt" ]; then
-            GAMBIA=$(cat "market-results/market-result-gambia/market-result.txt")
-          fi
+          const markets = {
+            gambia: {
+              name: 'Gambia',
+              file: 'playwright-results/playwright-results-gambia/test-results/playwright-results.json'
+            },
+            uganda: {
+              name: 'Uganda',
+              file: 'playwright-results/playwright-results-uganda/test-results/playwright-results.json'
+            },
+            sierraLeone: {
+              name: 'Sierra Leone',
+              file: 'playwright-results/playwright-results-sierraLeone/test-results/playwright-results.json'
+            }
+          };
 
-          if [ -f "market-results/market-result-uganda/market-result.txt" ]; then
-            UGANDA=$(cat "market-results/market-result-uganda/market-result.txt")
-          fi
+          function collectSpecs(suites, specs = []) {
+            for (const suite of suites || []) {
+              if (Array.isArray(suite.specs)) {
+                specs.push(...suite.specs);
+              }
 
-          if [ -f "market-results/market-result-sierraLeone/market-result.txt" ]; then
-            SIERRA_LEONE=$(cat "market-results/market-result-sierraLeone/market-result.txt")
-          fi
+              collectSpecs(suite.suites, specs);
+            }
 
-          if [ "$GAMBIA" = "PASSED" ] && \
-             [ "$UGANDA" = "PASSED" ] && \
-             [ "$SIERRA_LEONE" = "PASSED" ]; then
-            OVERALL="PASSED"
-          else
-            OVERALL="FAILED"
-          fi
+            return specs;
+          }
 
-          echo "gambia=$GAMBIA" >> "$GITHUB_OUTPUT"
-          echo "uganda=$UGANDA" >> "$GITHUB_OUTPUT"
-          echo "sierra_leone=$SIERRA_LEONE" >> "$GITHUB_OUTPUT"
-          echo "overall=$OVERALL" >> "$GITHUB_OUTPUT"
+          function analyse(file) {
+            if (!fs.existsSync(file)) {
+              return {
+                passed: 0,
+                failed: 0,
+                skipped: 0,
+                timedOut: 0,
+                flaky: 0,
+                duration: 0,
+                status: 'UNKNOWN'
+              };
+            }
+
+            const report = JSON.parse(
+              fs.readFileSync(file, 'utf8')
+            );
+
+            const specs = collectSpecs(report.suites);
+
+            let passed = 0;
+            let failed = 0;
+            let skipped = 0;
+            let timedOut = 0;
+            let flaky = 0;
+
+            for (const spec of specs) {
+              const test = spec.tests?.[0];
+
+              if (!test) {
+                continue;
+              }
+
+              const results = test.results || [];
+
+              const hasTimeout = results.some(
+                result => result.status === 'timedOut'
+              );
+
+              if (test.status === 'skipped') {
+                skipped++;
+              } else if (test.status === 'flaky') {
+                flaky++;
+              } else if (hasTimeout) {
+                timedOut++;
+              } else if (test.status === 'unexpected') {
+                failed++;
+              } else if (test.status === 'expected') {
+                passed++;
+              }
+            }
+
+            const duration = report.stats?.duration || 0;
+
+            const status =
+              failed === 0 &&
+              timedOut === 0 &&
+              skipped === 0 &&
+              flaky === 0
+                ? 'PASSED'
+                : 'FAILED';
+
+            return {
+              passed,
+              failed,
+              skipped,
+              timedOut,
+              flaky,
+              duration,
+              status
+            };
+          }
+
+          function formatDuration(milliseconds) {
+            const totalSeconds = Math.round(milliseconds / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+
+            if (minutes === 0) {
+              return `${seconds}s`;
+            }
+
+            return `${minutes}m ${seconds}s`;
+          }
+
+          const results = {};
+
+          for (const [key, market] of Object.entries(markets)) {
+            results[key] = {
+              name: market.name,
+              ...analyse(market.file)
+            };
+
+            results[key].durationFormatted =
+              formatDuration(results[key].duration);
+          }
+
+          const all = Object.values(results);
+
+          const passed = all.reduce(
+            (sum, result) => sum + result.passed,
+            0
+          );
+
+          const failed = all.reduce(
+            (sum, result) => sum + result.failed,
+            0
+          );
+
+          const skipped = all.reduce(
+            (sum, result) => sum + result.skipped,
+            0
+          );
+
+          const timedOut = all.reduce(
+            (sum, result) => sum + result.timedOut,
+            0
+          );
+
+          const flaky = all.reduce(
+            (sum, result) => sum + result.flaky,
+            0
+          );
+
+          const duration = all.reduce(
+            (sum, result) => sum + result.duration,
+            0
+          );
+
+          const overall =
+            failed === 0 &&
+            timedOut === 0 &&
+            skipped === 0 &&
+            flaky === 0
+              ? 'PASSED'
+              : 'FAILED';
+
+          function marketMessage(result) {
+            const emoji =
+              result.status === 'PASSED'
+                ? '🟢'
+                : '🔴';
+
+            return (
+              `${emoji} *${result.status}*\\n` +
+              `🟢 Passed: ${result.passed}\\n` +
+              `🔴 Failed: ${result.failed}\\n` +
+              `🟡 Skipped: ${result.skipped}\\n` +
+              `⏱️ Timed Out: ${result.timedOut}\\n` +
+              `🔄 Flaky: ${result.flaky}\\n` +
+              `⏱️ Duration: ${result.durationFormatted}`
+            );
+          }
+
+          const githubOutput = process.env.GITHUB_OUTPUT;
+
+          fs.appendFileSync(
+            githubOutput,
+            `overall=${overall}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `passed=${passed}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `failed=${failed}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `skipped=${skipped}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `timedOut=${timedOut}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `flaky=${flaky}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `duration=${formatDuration(duration)}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `gambia=${marketMessage(results.gambia)}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `uganda=${marketMessage(results.uganda)}\n`
+          );
+
+          fs.appendFileSync(
+            githubOutput,
+            `sierra_leone=${marketMessage(results.sierraLeone)}\n`
+          );
+
+          console.log(
+            JSON.stringify(
+              {
+                overall,
+                passed,
+                failed,
+                skipped,
+                timedOut,
+                flaky,
+                duration: formatDuration(duration),
+                markets: results
+              },
+              null,
+              2
+            )
+          );
+          NODE
 
       - name: Send report to Slack
         uses: slackapi/slack-github-action@v4.0.0
@@ -141,7 +360,8 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "PLAYWRIGHT TEST REPORT"
+                    "text": "🎭 PLAYWRIGHT TEST REPORT",
+                    "emoji": true
                   }
                 },
                 {
@@ -153,15 +373,18 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Overall:*\n${{ steps.report.outputs.overall }}"
+                      "text": "*Overall:*\n${{ steps.report.outputs.overall == 'PASSED' && '🟢 PASSED' || '🔴 FAILED' }}"
                     }
                   ]
+                },
+                {
+                  "type": "divider"
                 },
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Market Results:*"
+                    "text": "*Test Summary*"
                   }
                 },
                 {
@@ -169,24 +392,100 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Gambia:*\n${{ steps.report.outputs.gambia }}"
+                      "text": "🟢 *Passed:*\n${{ steps.report.outputs.passed }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Uganda:*\n${{ steps.report.outputs.uganda }}"
+                      "text": "🔴 *Failed:*\n${{ steps.report.outputs.failed }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Sierra Leone:*\n${{ steps.report.outputs.sierra_leone }}"
+                      "text": "🟡 *Skipped:*\n${{ steps.report.outputs.skipped }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "⏱️ *Timed Out:*\n${{ steps.report.outputs.timedOut }}"
                     }
                   ]
                 },
                 {
                   "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "🔄 *Flaky:*\n${{ steps.report.outputs.flaky }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "⏱️ *Duration:*\n${{ steps.report.outputs.duration }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Run:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View GitHub Actions Run>"
+                    "text": "*Market Results*"
                   }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🇬🇲 *Gambia*\n${{ steps.report.outputs.gambia }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🇺🇬 *Uganda*\n${{ steps.report.outputs.uganda }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🇸🇱 *Sierra Leone*\n${{ steps.report.outputs.sierra_leone }}"
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Run",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Reports",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Branch: `${{ github.ref_name }}` • Commit: `${{ github.sha }}`"
+                    }
+                  ]
                 }
               ]
             }
