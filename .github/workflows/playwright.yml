@@ -48,7 +48,26 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run Playwright tests
+        id: playwright
+        continue-on-error: true
         run: npx playwright test
+
+      - name: Save market result
+        if: always()
+        run: |
+          if [ "${{ steps.playwright.outcome }}" = "success" ]; then
+            echo "PASSED" > market-result.txt
+          else
+            echo "FAILED" > market-result.txt
+          fi
+
+      - name: Upload market result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-result-${{ matrix.market }}
+          path: market-result.txt
+          retention-days: 30
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
@@ -57,3 +76,117 @@ jobs:
           name: playwright-report-${{ matrix.market }}
           path: playwright-report/
           retention-days: 30
+
+      - name: Fail market job if tests failed
+        if: steps.playwright.outcome == 'failure'
+        run: exit 1
+
+  slack-report:
+    name: Slack Playwright Report
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+
+    steps:
+      - name: Download market results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: market-result-*
+          path: market-results
+          merge-multiple: false
+
+      - name: Determine market results
+        id: report
+        shell: bash
+        run: |
+          GAMBIA="UNKNOWN"
+          UGANDA="UNKNOWN"
+          SIERRA_LEONE="UNKNOWN"
+
+          if [ -f "market-results/market-result-gambia/market-result.txt" ]; then
+            GAMBIA=$(cat "market-results/market-result-gambia/market-result.txt")
+          fi
+
+          if [ -f "market-results/market-result-uganda/market-result.txt" ]; then
+            UGANDA=$(cat "market-results/market-result-uganda/market-result.txt")
+          fi
+
+          if [ -f "market-results/market-result-sierraLeone/market-result.txt" ]; then
+            SIERRA_LEONE=$(cat "market-results/market-result-sierraLeone/market-result.txt")
+          fi
+
+          if [ "$GAMBIA" = "PASSED" ] && \
+             [ "$UGANDA" = "PASSED" ] && \
+             [ "$SIERRA_LEONE" = "PASSED" ]; then
+            OVERALL="PASSED"
+          else
+            OVERALL="FAILED"
+          fi
+
+          echo "gambia=$GAMBIA" >> "$GITHUB_OUTPUT"
+          echo "uganda=$UGANDA" >> "$GITHUB_OUTPUT"
+          echo "sierra_leone=$SIERRA_LEONE" >> "$GITHUB_OUTPUT"
+          echo "overall=$OVERALL" >> "$GITHUB_OUTPUT"
+
+      - name: Send report to Slack
+        uses: slackapi/slack-github-action@v4.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "PLAYWRIGHT TEST REPORT - LIVE",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "PLAYWRIGHT TEST REPORT"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\nLIVE"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Overall:*\n${{ steps.report.outputs.overall }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Market Results:*"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Gambia:*\n${{ steps.report.outputs.gambia }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Uganda:*\n${{ steps.report.outputs.uganda }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Sierra Leone:*\n${{ steps.report.outputs.sierra_leone }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Branch:* `${{ github.ref_name }}`\n*Commit:* `${{ github.sha }}`\n*Run:* <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View GitHub Actions Run>"
+                  }
+                }
+              ]
+            }
