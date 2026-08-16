@@ -3,8 +3,10 @@ name: Playwright Tests
 on:
   push:
     branches: [ main, master ]
+
   pull_request:
     branches: [ main, master ]
+
   schedule:
     - cron: '0 8 * * *'
     - cron: '0 15 * * *'
@@ -100,15 +102,15 @@ jobs:
           const markets = {
             gambia: {
               name: 'Gambia',
-              file: 'playwright-results/playwright-results-gambia/test-results/playwright-results.json'
+              file: 'playwright-results/playwright-results-gambia/playwright-results.json'
             },
             uganda: {
               name: 'Uganda',
-              file: 'playwright-results/playwright-results-uganda/test-results/playwright-results.json'
+              file: 'playwright-results/playwright-results-uganda/playwright-results.json'
             },
             sierraLeone: {
               name: 'Sierra Leone',
-              file: 'playwright-results/playwright-results-sierraLeone/test-results/playwright-results.json'
+              file: 'playwright-results/playwright-results-sierraLeone/playwright-results.json'
             }
           };
 
@@ -126,15 +128,7 @@ jobs:
 
           function analyse(file) {
             if (!fs.existsSync(file)) {
-              return {
-                passed: 0,
-                failed: 0,
-                skipped: 0,
-                timedOut: 0,
-                flaky: 0,
-                duration: 0,
-                status: 'UNKNOWN'
-              };
+              throw new Error(`Playwright result file not found: ${file}`);
             }
 
             const report = JSON.parse(
@@ -261,19 +255,19 @@ jobs:
               : 'FAILED';
 
           function marketMessage(result) {
-            const emoji =
+            const status =
               result.status === 'PASSED'
-                ? '🟢'
-                : '🔴';
+                ? '🟢 PASSED'
+                : '🔴 FAILED';
 
             return (
-              `${emoji} *${result.status}*\\n` +
-              `🟢 Passed: ${result.passed}\\n` +
-              `🔴 Failed: ${result.failed}\\n` +
-              `🟡 Skipped: ${result.skipped}\\n` +
-              `⏱️ Timed Out: ${result.timedOut}\\n` +
-              `🔄 Flaky: ${result.flaky}\\n` +
-              `⏱️ Duration: ${result.durationFormatted}`
+              `${status} | ` +
+              `Passed: ${result.passed} | ` +
+              `Failed: ${result.failed} | ` +
+              `Skipped: ${result.skipped} | ` +
+              `Timed Out: ${result.timedOut} | ` +
+              `Flaky: ${result.flaky} | ` +
+              `Duration: ${result.durationFormatted}`
             );
           }
 
@@ -360,8 +354,7 @@ jobs:
                   "type": "header",
                   "text": {
                     "type": "plain_text",
-                    "text": "🎭 PLAYWRIGHT TEST REPORT",
-                    "emoji": true
+                    "text": "PLAYWRIGHT TEST REPORT"
                   }
                 },
                 {
@@ -392,19 +385,19 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "🟢 *Passed:*\n${{ steps.report.outputs.passed }}"
+                      "text": "*Passed:*\n${{ steps.report.outputs.passed }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "🔴 *Failed:*\n${{ steps.report.outputs.failed }}"
+                      "text": "*Failed:*\n${{ steps.report.outputs.failed }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "🟡 *Skipped:*\n${{ steps.report.outputs.skipped }}"
+                      "text": "*Skipped:*\n${{ steps.report.outputs.skipped }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "⏱️ *Timed Out:*\n${{ steps.report.outputs.timedOut }}"
+                      "text": "*Timed Out:*\n${{ steps.report.outputs.timedOut }}"
                     }
                   ]
                 },
@@ -413,11 +406,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "🔄 *Flaky:*\n${{ steps.report.outputs.flaky }}"
+                      "text": "*Flaky:*\n${{ steps.report.outputs.flaky }}"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "⏱️ *Duration:*\n${{ steps.report.outputs.duration }}"
+                      "text": "*Duration:*\n${{ steps.report.outputs.duration }}"
                     }
                   ]
                 },
@@ -435,21 +428,21 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "🇬🇲 *Gambia*\n${{ steps.report.outputs.gambia }}"
+                    "text": "*Gambia*\n${{ steps.report.outputs.gambia }}"
                   }
                 },
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "🇺🇬 *Uganda*\n${{ steps.report.outputs.uganda }}"
+                    "text": "*Uganda*\n${{ steps.report.outputs.uganda }}"
                   }
                 },
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "🇸🇱 *Sierra Leone*\n${{ steps.report.outputs.sierra_leone }}"
+                    "text": "*Sierra Leone*\n${{ steps.report.outputs.sierra_leone }}"
                   }
                 },
                 {
@@ -462,8 +455,7 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "View Run",
-                        "emoji": true
+                        "text": "View Run"
                       },
                       "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     },
@@ -471,8 +463,7 @@ jobs:
                       "type": "button",
                       "text": {
                         "type": "plain_text",
-                        "text": "View Reports",
-                        "emoji": true
+                        "text": "View Reports"
                       },
                       "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                     }
